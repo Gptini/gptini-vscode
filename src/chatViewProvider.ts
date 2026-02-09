@@ -1,14 +1,29 @@
 import * as vscode from "vscode";
 import axios from "axios";
 
+function getNonce(): string {
+    let text = "";
+    const possible =
+        "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    for (let i = 0; i < 32; i++) {
+        text += possible.charAt(Math.floor(Math.random() * possible.length));
+    }
+    return text;
+}
+
 export class ChatViewProvider implements vscode.WebviewViewProvider {
     private _view?: vscode.WebviewView;
 
     constructor(private readonly _extensionUri: vscode.Uri) {}
 
+    private getServerUrl(): string {
+        const config = vscode.workspace.getConfiguration("gptini");
+        return config.get<string>("serverUrl", "http://localhost:8080");
+    }
+
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
-        context: vscode.WebviewViewResolveContext,
+        _context: vscode.WebviewViewResolveContext,
         _token: vscode.CancellationToken,
     ) {
         this._view = webviewView;
@@ -18,9 +33,10 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             localResourceRoots: [this._extensionUri],
         };
 
-        webviewView.webview.html = this._getHtmlForWebview(webviewView.webview);
+        webviewView.webview.html = this._getHtmlForWebview(
+            webviewView.webview,
+        );
 
-        // 웹뷰에서 메시지 받기
         webviewView.webview.onDidReceiveMessage(async (data) => {
             switch (data.type) {
                 case "sendMessage":
@@ -34,26 +50,32 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async sendMessageToServer(message: string) {
+        const serverUrl = this.getServerUrl();
         try {
-            // TODO: 여기에 실제 Spring 서버 URL 입력
-            const response = await axios.post(
-                "http://localhost:8080/api/chat/send",
-                {
-                    message: message,
-                    // 필요한 다른 필드들 추가
-                },
-            );
-
-            // 메시지 전송 후 새로고침
+            await axios.post(`${serverUrl}/api/chat/send`, {
+                message: message,
+            });
             await this.loadMessages();
         } catch (error) {
-            vscode.window.showErrorMessage("메시지 전송 실패");
+            vscode.window.showErrorMessage(
+                `메시지 전송 실패: 서버(${serverUrl})에 연결할 수 없습니다.`,
+            );
         }
     }
 
     private async loadMessages() {
+        const serverUrl = this.getServerUrl();
         try {
-            // 임시 더미 데이터
+            const response = await axios.get(
+                `${serverUrl}/api/chat/messages`,
+                { timeout: 3000 },
+            );
+            this._view?.webview.postMessage({
+                type: "updateMessages",
+                messages: response.data,
+            });
+        } catch {
+            // 서버 연결 실패 시 더미 데이터로 폴백
             const dummyMessages = [
                 {
                     username: "경민",
@@ -67,7 +89,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 },
                 {
                     username: "경민",
-                    content: "채팅 UI가 파일 탐색기처럼 잘 나오네요!",
+                    content:
+                        "서버에 연결할 수 없어 더미 데이터를 표시합니다. 설정에서 gptini.serverUrl을 확인하세요.",
                     timestamp: new Date().toISOString(),
                 },
             ];
@@ -76,26 +99,30 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 type: "updateMessages",
                 messages: dummyMessages,
             });
-
-            // TODO: 나중에 실제 서버 연결할 때 아래 주석 해제
-            // const response = await axios.get('http://localhost:8080/api/chat/messages');
-            // this._view?.webview.postMessage({
-            //     type: 'updateMessages',
-            //     messages: response.data
-            // });
-        } catch (error) {
-            console.error("메시지 로드 실패:", error);
         }
     }
 
     private _getHtmlForWebview(webview: vscode.Webview) {
+        const nonce = getNonce();
+
+        const codiconsUri = webview.asWebviewUri(
+            vscode.Uri.joinPath(
+                this._extensionUri,
+                "node_modules",
+                "@vscode/codicons",
+                "dist",
+                "codicon.css",
+            ),
+        );
+
         return `<!DOCTYPE html>
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <link rel="stylesheet" href="https://microsoft.github.io/vscode-codicons/dist/codicon.css">
-    <style>
+    <meta http-equiv="Content-Security-Policy" content="default-src 'none'; style-src ${webview.cspSource} 'nonce-${nonce}'; font-src ${webview.cspSource}; script-src 'nonce-${nonce}';">
+    <link rel="stylesheet" href="${codiconsUri}">
+    <style nonce="${nonce}">
         * {
             margin: 0;
             padding: 0;
@@ -113,7 +140,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             overflow: hidden;
         }
 
-        /* 파일 탐색기 스타일 헤더 */
         #explorer-header {
             padding: 4px 8px;
             font-size: 11px;
@@ -125,7 +151,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             letter-spacing: 0.5px;
         }
 
-        /* 메시지 영역 */
         #messages {
             flex: 1;
             overflow-y: auto;
@@ -148,7 +173,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             background: var(--vscode-scrollbarSlider-hoverBackground);
         }
 
-        /* 사용자 폴더 */
         .user-folder {
             margin: 0;
         }
@@ -189,7 +213,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             flex: 1;
         }
 
-        /* 메시지 파일들 */
         .folder-contents {
             display: none;
         }
@@ -244,7 +267,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             margin-left: 8px;
         }
 
-        /* 메시지 내용 */
         .file-content {
             display: none;
             padding: 0 8px 0 40px;
@@ -259,7 +281,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             display: block;
         }
 
-        /* 입력 영역 */
         #input-area {
             border-top: 1px solid var(--vscode-sideBar-border);
             padding: 6px;
@@ -336,20 +357,17 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         </div>
     </div>
 
-    <script>
+    <script nonce="${nonce}">
         const vscode = acquireVsCodeApi();
         const messagesDiv = document.getElementById('messages');
         const messageInput = document.getElementById('message-input');
         const sendBtn = document.getElementById('send-btn');
 
-        // 상태 저장 (어떤 폴더/파일이 펼쳐져 있는지)
         let expandedFolders = new Set();
         let expandedFiles = new Set();
 
-        // 페이지 로드 시 메시지 불러오기
         vscode.postMessage({ type: 'loadMessages' });
 
-        // 메시지 전송
         function sendMessage() {
             const message = messageInput.value.trim();
             if (message) {
@@ -371,13 +389,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             }
         });
 
-        // 자동 높이 조절
         messageInput.addEventListener('input', () => {
             messageInput.style.height = 'auto';
             messageInput.style.height = Math.min(messageInput.scrollHeight, 100) + 'px';
         });
 
-        // Extension에서 메시지 받기
         window.addEventListener('message', event => {
             const message = event.data;
             switch (message.type) {
@@ -389,75 +405,66 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         function displayMessages(messages) {
             messagesDiv.innerHTML = '';
-            
-            // 각 메시지를 개별 폴더로 표시 (시간순)
+
             messages.forEach((msg, index) => {
                 const username = msg.username || 'Unknown';
                 const userFolder = document.createElement('div');
                 userFolder.className = 'user-folder';
-                
+
                 const folderId = 'folder-' + index;
                 const isExpanded = expandedFolders.has(folderId);
-                
-                // 폴더 헤더
+
                 const folderHeader = document.createElement('div');
                 folderHeader.className = 'folder-header';
-                
+
                 const time = msg.timestamp ? formatTime(msg.timestamp) : '';
-                
-                folderHeader.innerHTML = \`
-                    <span class="folder-chevron codicon codicon-chevron-right \${isExpanded ? 'expanded' : ''}"></span>
-                    <span class="folder-icon codicon codicon-folder\${isExpanded ? '-opened' : ''}"></span>
-                    <span class="folder-name">\${escapeHtml(username)}</span>
-                    <span class="file-time">\${time}</span>
-                \`;
-                
-                // 폴더 클릭 이벤트
+
+                folderHeader.innerHTML =
+                    '<span class="folder-chevron codicon codicon-chevron-right ' + (isExpanded ? 'expanded' : '') + '"></span>' +
+                    '<span class="folder-icon codicon codicon-folder' + (isExpanded ? '-opened' : '') + '"></span>' +
+                    '<span class="folder-name">' + escapeHtml(username) + '</span>' +
+                    '<span class="file-time">' + time + '</span>';
+
                 folderHeader.addEventListener('click', () => {
                     toggleFolder(folderId, userFolder);
                 });
-                
+
                 userFolder.appendChild(folderHeader);
 
-                // 폴더 내용 (메시지 파일)
                 const folderContents = document.createElement('div');
-                folderContents.className = \`folder-contents \${isExpanded ? 'expanded' : ''}\`;
+                folderContents.className = 'folder-contents' + (isExpanded ? ' expanded' : '');
 
                 const messageFile = document.createElement('div');
                 messageFile.className = 'message-file';
-                
-                const extension = getFileExtension(username);
+
+                const ext = getFileExtension(username);
                 const fileId = 'file-' + index;
                 const isFileExpanded = expandedFiles.has(fileId);
                 const content = msg.content || msg.message || '';
-                
-                // 파일 헤더
+
                 const fileHeader = document.createElement('div');
                 fileHeader.className = 'file-header';
-                fileHeader.innerHTML = \`
-                    <span class="file-chevron codicon codicon-chevron-right \${isFileExpanded ? 'expanded' : ''}"></span>
-                    <span class="file-icon codicon codicon-\${getFileIcon(extension)}"></span>
-                    <span class="file-name">message.\${extension}</span>
-                \`;
-                
-                // 파일 클릭 이벤트
+                fileHeader.innerHTML =
+                    '<span class="file-chevron codicon codicon-chevron-right ' + (isFileExpanded ? 'expanded' : '') + '"></span>' +
+                    '<span class="file-icon codicon codicon-' + getFileIcon(ext) + '"></span>' +
+                    '<span class="file-name">message.' + ext + '</span>';
+
                 fileHeader.addEventListener('click', () => {
                     toggleFile(fileId, messageFile);
                 });
-                
+
                 messageFile.appendChild(fileHeader);
 
-                // 파일 내용
                 const fileContent = document.createElement('div');
-                fileContent.className = \`file-content \${isFileExpanded ? 'expanded' : ''}\`;
+                fileContent.className = 'file-content' + (isFileExpanded ? ' expanded' : '');
                 fileContent.textContent = content;
-                
+
                 messageFile.appendChild(fileContent);
                 folderContents.appendChild(messageFile);
                 userFolder.appendChild(folderContents);
                 messagesDiv.appendChild(userFolder);
             });
-            
+
             messagesDiv.scrollTop = messagesDiv.scrollHeight;
         }
 
@@ -465,7 +472,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const chevron = folderElement.querySelector('.folder-chevron');
             const folderIcon = folderElement.querySelector('.folder-icon');
             const contents = folderElement.querySelector('.folder-contents');
-            
+
             if (expandedFolders.has(folderId)) {
                 expandedFolders.delete(folderId);
                 chevron.classList.remove('expanded');
@@ -484,7 +491,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         function toggleFile(fileId, fileElement) {
             const chevron = fileElement.querySelector('.file-chevron');
             const content = fileElement.querySelector('.file-content');
-            
+
             if (expandedFiles.has(fileId)) {
                 expandedFiles.delete(fileId);
                 chevron.classList.remove('expanded');
@@ -520,7 +527,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const date = new Date(timestamp);
             const hours = String(date.getHours()).padStart(2, '0');
             const minutes = String(date.getMinutes()).padStart(2, '0');
-            return \`\${hours}:\${minutes}\`;
+            return hours + ':' + minutes;
         }
 
         function escapeHtml(text) {

@@ -1,24 +1,21 @@
-import typescriptEslint from "typescript-eslint";
+import tseslint from "@typescript-eslint/eslint-plugin";
+import tsparser from "@typescript-eslint/parser";
 
 export default [{
-    files: ["**/*.ts"],
-}, {
+    files: ["src/**/*.ts"],
     plugins: {
-        "@typescript-eslint": typescriptEslint.plugin,
+        "@typescript-eslint": tseslint,
     },
-
     languageOptions: {
-        parser: typescriptEslint.parser,
+        parser: tsparser,
         ecmaVersion: 2022,
         sourceType: "module",
     },
-
     rules: {
         "@typescript-eslint/naming-convention": ["warn", {
             selector: "import",
             format: ["camelCase", "PascalCase"],
         }],
-
         curly: "warn",
         eqeqeq: "warn",
         "no-throw-literal": "warn",
