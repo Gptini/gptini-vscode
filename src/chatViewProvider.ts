@@ -118,14 +118,21 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             await this._handleLoadRooms();
         } catch (error: any) {
             const status = error?.response?.status;
-            const responseData = error?.response?.data;
-            const msg = responseData?.message || "로그인에 실패했습니다.";
-            console.error("[GPTini] 로그인 실패:", {
-                status,
-                url: error?.config?.url,
-                responseData,
-                message: error?.message,
-            });
+            const url = error?.config?.url || `${this._getApiUrl()}/api/v1/auth/login`;
+            const serverMsg = error?.response?.data?.message;
+            console.error("[GPTini] 로그인 실패:", { status, url, data: error?.response?.data, message: error?.message });
+
+            let msg: string;
+            if (!error?.response) {
+                msg = `서버에 연결할 수 없습니다.\n시도한 URL: ${url}`;
+            } else if (status === 401) {
+                msg = "이메일 또는 비밀번호가 올바르지 않습니다.";
+            } else if (status === 404) {
+                msg = `API 경로를 찾을 수 없습니다. (404)\nURL: ${url}`;
+            } else {
+                msg = serverMsg || `로그인 실패 (HTTP ${status})\nURL: ${url}`;
+            }
+
             this._view?.webview.postMessage({ type: "loginError", message: msg });
         }
     }
@@ -299,6 +306,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             font-size: 12px;
             color: var(--vscode-errorForeground, #f48771);
             display: none;
+            white-space: pre-line;
         }
         .error-msg.visible { display: block; }
 
