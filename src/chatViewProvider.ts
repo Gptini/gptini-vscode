@@ -1,7 +1,8 @@
 import * as vscode from "vscode";
 import axios from "axios";
 
-const DEFAULT_API_URL = "https://gpt-ini.onrender.com";
+const DEFAULT_API_URL = "https://api.gptini.org";
+const DEFAULT_WS_URL  = "https://gpt-ini.onrender.com";
 
 function getNonce() {
     let text = "";
@@ -68,7 +69,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _getWsUrl(): string {
-        return `${this._getApiUrl()}/ws`;
+        return (
+            vscode.workspace
+                .getConfiguration("gptini")
+                .get<string>("wsUrl") || DEFAULT_WS_URL
+        ) + "/ws";
     }
 
     private async _handleReady() {

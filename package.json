@@ -36,8 +36,13 @@
       "properties": {
         "gptini.serverUrl": {
           "type": "string",
+          "default": "https://api.gptini.org",
+          "description": "REST API 서버 URL"
+        },
+        "gptini.wsUrl": {
+          "type": "string",
           "default": "https://gpt-ini.onrender.com",
-          "description": "백엔드 서버 URL"
+          "description": "WebSocket 프록시 URL"
         }
       }
     }
