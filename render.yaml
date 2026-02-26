@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: gptini-proxy
+    env: node
+    region: singapore   # 한국과 가장 가까운 무료 리전
+    plan: free
+    rootDir: proxy-server
+    buildCommand: npm install
+    startCommand: npm start
+    healthCheckPath: /health
+    envVars:
+      - key: TARGET_URL
+        sync: false       # Render 대시보드에서 직접 입력 (Spring 서버 주소)
+      - key: API_PATH
+        value: /api       # 레포 확인 후 수정
+      - key: WS_PATH
+        value: /ws        # 레포 확인 후 수정
+      - key: ALLOWED_ORIGINS
+        value: "*"
+      - key: NODE_ENV
+        value: production

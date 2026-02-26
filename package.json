@@ -29,6 +29,26 @@
           "name": "Messages"
         }
       ]
+    },
+    "configuration": {
+      "title": "GPTini",
+      "properties": {
+        "gptini.proxyUrl": {
+          "type": "string",
+          "default": "http://localhost:3000",
+          "description": "프록시 서버 URL (Render/Railway에 배포 후 해당 주소로 변경)"
+        },
+        "gptini.apiPath": {
+          "type": "string",
+          "default": "/api",
+          "description": "REST API 기본 경로"
+        },
+        "gptini.wsPath": {
+          "type": "string",
+          "default": "/ws",
+          "description": "WebSocket 엔드포인트 경로"
+        }
+      }
     }
   },
   "scripts": {

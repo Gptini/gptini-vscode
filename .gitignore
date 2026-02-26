@@ -3,3 +3,5 @@ dist
 node_modules
 .vscode-test/
 *.vsix
+proxy-server/.env
+proxy-server/node_modules/

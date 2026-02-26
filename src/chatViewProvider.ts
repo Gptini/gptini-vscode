@@ -6,6 +6,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
     constructor(private readonly _extensionUri: vscode.Uri) {}
 
+    private getConfig() {
+        const cfg = vscode.workspace.getConfiguration("gptini");
+        const proxyUrl = cfg.get<string>("proxyUrl", "http://localhost:3000").replace(/\/$/, "");
+        const apiPath = cfg.get<string>("apiPath", "/api");
+        return { proxyUrl, apiPath };
+    }
+
     public resolveWebviewView(
         webviewView: vscode.WebviewView,
         context: vscode.WebviewViewResolveContext,
@@ -34,56 +41,36 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private async sendMessageToServer(message: string) {
+        const { proxyUrl, apiPath } = this.getConfig();
         try {
-            // TODO: 여기에 실제 Spring 서버 URL 입력
-            const response = await axios.post(
-                "http://localhost:8080/api/chat/send",
-                {
-                    message: message,
-                    // 필요한 다른 필드들 추가
-                },
-            );
-
-            // 메시지 전송 후 새로고침
+            await axios.post(`${proxyUrl}${apiPath}/chat/send`, { message });
             await this.loadMessages();
         } catch (error) {
-            vscode.window.showErrorMessage("메시지 전송 실패");
+            vscode.window.showErrorMessage(`메시지 전송 실패 (프록시: ${proxyUrl})`);
         }
     }
 
     private async loadMessages() {
+        const { proxyUrl, apiPath } = this.getConfig();
         try {
-            // 임시 더미 데이터
+            const response = await axios.get(`${proxyUrl}${apiPath}/chat/messages`);
+            this._view?.webview.postMessage({
+                type: "updateMessages",
+                messages: response.data,
+            });
+        } catch (error) {
+            // 서버 연결 전 더미 데이터로 UI 확인
             const dummyMessages = [
                 {
                     username: "경민",
-                    content: "안녕하세요! 테스트 메시지입니다.",
-                    timestamp: new Date(Date.now() - 120000).toISOString(),
-                },
-                {
-                    username: "채욘",
-                    content: "네 잘 받았습니다~",
-                    timestamp: new Date(Date.now() - 60000).toISOString(),
-                },
-                {
-                    username: "경민",
-                    content: "채팅 UI가 파일 탐색기처럼 잘 나오네요!",
+                    content: `프록시 서버 미연결 상태입니다. 설정에서 gptini.proxyUrl을 확인하세요. (현재: ${proxyUrl})`,
                     timestamp: new Date().toISOString(),
                 },
             ];
-
             this._view?.webview.postMessage({
                 type: "updateMessages",
                 messages: dummyMessages,
             });
-
-            // TODO: 나중에 실제 서버 연결할 때 아래 주석 해제
-            // const response = await axios.get('http://localhost:8080/api/chat/messages');
-            // this._view?.webview.postMessage({
-            //     type: 'updateMessages',
-            //     messages: response.data
-            // });
-        } catch (error) {
             console.error("메시지 로드 실패:", error);
         }
     }
