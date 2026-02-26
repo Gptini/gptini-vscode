@@ -1,0 +1,12 @@
+services:
+  - type: web
+    name: gpt-ini
+    runtime: node
+    rootDir: proxy-server
+    buildCommand: npm install
+    startCommand: npm start
+    envVars:
+      - key: TARGET_URL
+        value: http://3.37.92.94:8080
+      - key: PORT
+        value: 3000
