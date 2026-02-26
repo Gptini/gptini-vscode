@@ -83,10 +83,12 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private async _handleLogin(email: string, password: string) {
         try {
             const apiUrl = this._getApiUrl();
+            console.log(`[GPTini] 로그인 시도: ${apiUrl}/api/v1/auth/login`);
             const { data: authData } = await axios.post(
                 `${apiUrl}/api/v1/auth/login`,
                 { email, password },
             );
+            console.log("[GPTini] 로그인 성공, 유저 정보 조회 중...");
             const { data: userData } = await axios.get(
                 `${apiUrl}/api/v1/users/me`,
                 {
@@ -115,8 +117,15 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
             await this._handleLoadRooms();
         } catch (error: any) {
-            const msg =
-                error?.response?.data?.message || "로그인에 실패했습니다.";
+            const status = error?.response?.status;
+            const responseData = error?.response?.data;
+            const msg = responseData?.message || "로그인에 실패했습니다.";
+            console.error("[GPTini] 로그인 실패:", {
+                status,
+                url: error?.config?.url,
+                responseData,
+                message: error?.message,
+            });
             this._view?.webview.postMessage({ type: "loginError", message: msg });
         }
     }
