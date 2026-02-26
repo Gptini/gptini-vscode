@@ -1,8 +1,7 @@
 import * as vscode from "vscode";
 import axios from "axios";
 
-const DEFAULT_API_URL   = "https://api.gptini.org";
-const DEFAULT_PROXY_URL = "https://gpt-ini.onrender.com";
+const DEFAULT_API_URL = "https://api.gptini.org";
 
 function getNonce() {
     let text = "";
@@ -60,14 +59,6 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         });
     }
 
-    private _getProxyUrl(): string {
-        return (
-            vscode.workspace
-                .getConfiguration("gptini")
-                .get<string>("proxyUrl") || DEFAULT_PROXY_URL
-        );
-    }
-
     private _getApiUrl(): string {
         return (
             vscode.workspace
@@ -77,7 +68,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _getWsUrl(): string {
-        return this._getProxyUrl() + "/ws";
+        return this._getApiUrl() + "/ws";
     }
 
     private async _handleReady() {
