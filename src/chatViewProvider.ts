@@ -88,7 +88,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 `${apiUrl}/api/v1/auth/login`,
                 { email, password },
             );
-            console.log("[GPTini] 로그인 성공, 유저 정보 조회 중...");
+            console.log("[GPTini] 로그인 응답:", JSON.stringify(authData));
+            console.log("[GPTini] 유저 정보 조회 중...");
             const { data: userData } = await axios.get(
                 `${apiUrl}/api/v1/users/me`,
                 {
