@@ -93,32 +93,23 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                 { email, password },
             );
             console.log("[GPTini] 로그인 응답:", JSON.stringify(authData));
+            const accessToken  = authData.data.accessToken;
+            const refreshToken = authData.data.refreshToken;
             console.log("[GPTini] 유저 정보 조회 중...");
             const { data: userData } = await axios.get(
                 `${apiUrl}/api/v1/users/me`,
                 {
                     headers: {
-                        Authorization: `Bearer ${authData.accessToken}`,
+                        Authorization: `Bearer ${accessToken}`,
                     },
                 },
             );
 
-            await this._context.secrets.store(
-                "gptini.accessToken",
-                authData.accessToken,
-            );
-            await this._context.secrets.store(
-                "gptini.refreshToken",
-                authData.refreshToken,
-            );
-            await this._context.globalState.update(
-                "gptini.userId",
-                userData.id,
-            );
-            await this._context.globalState.update(
-                "gptini.nickname",
-                userData.nickname,
-            );
+            await this._context.secrets.store("gptini.accessToken",  accessToken);
+            await this._context.secrets.store("gptini.refreshToken", refreshToken);
+            const user = userData.data ?? userData;
+            await this._context.globalState.update("gptini.userId",   user.id);
+            await this._context.globalState.update("gptini.nickname", user.nickname);
 
             await this._handleLoadRooms();
         } catch (error: any) {
@@ -146,10 +137,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         try {
             const token = await this._context.secrets.get("gptini.accessToken");
             const apiUrl = this._getApiUrl();
-            const { data: rooms } = await axios.get(
+            const { data: roomsRes } = await axios.get(
                 `${apiUrl}/api/v1/chat/rooms`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
+            const rooms = roomsRes.data ?? roomsRes;
             const userId = this._context.globalState.get<number>("gptini.userId");
             const nickname =
                 this._context.globalState.get<string>("gptini.nickname");
@@ -172,10 +164,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const token = await this._context.secrets.get("gptini.accessToken");
             const userId = this._context.globalState.get<number>("gptini.userId");
             const apiUrl = this._getApiUrl();
-            const { data: messages } = await axios.get(
+            const { data: messagesRes } = await axios.get(
                 `${apiUrl}/api/v1/chat/rooms/${roomId}/messages`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
+            const messages = messagesRes.data ?? messagesRes;
 
             this._view?.webview.postMessage({
                 type: "showChat",
