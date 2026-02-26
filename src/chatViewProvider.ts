@@ -648,7 +648,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // ── WebSocket (STOMP over SockJS) ──
         function connectWs(token, wsUrl, userId) {
             if (stompClient?.active) return;
-
+            console.log('[GPTini] WS 연결 시도:', wsUrl);
             stompClient = new StompJs.Client({
                 webSocketFactory: () => new SockJS(wsUrl),
                 connectHeaders: { Authorization: \`Bearer \${token}\` },
@@ -666,8 +666,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     if (currentRoomId !== null) subscribeRoom(currentRoomId);
                 },
                 onDisconnect: () => updateWsDot(false),
-                onStompError:    () => {},
-                onWebSocketError: () => {},
+                onStompError: (frame) => { console.error('[GPTini] STOMP error:', frame); },
+                onWebSocketError: (e) => { console.error('[GPTini] WS error:', e); },
             });
             stompClient.activate();
         }
@@ -789,7 +789,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         function sendMessage() {
             const content = msgInput.value.trim();
-            if (!content || !stompClient?.connected || currentRoomId === null) return;
+            if (!content) return;
+            if (!stompClient?.connected) {
+                console.warn('[GPTini] 전송 실패: WS 미연결, connected=', stompClient?.connected, 'active=', stompClient?.active);
+                alert('서버에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.');
+                return;
+            }
+            if (currentRoomId === null) return;
             stompClient.publish({
                 destination: \`/pub/chat/rooms/\${currentRoomId}\`,
                 body: JSON.stringify({ type: 'TEXT', content }),
