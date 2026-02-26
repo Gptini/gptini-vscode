@@ -34,15 +34,10 @@
       "type": "object",
       "title": "GPTini",
       "properties": {
-        "gptini.serverUrl": {
-          "type": "string",
-          "default": "https://api.gptini.org",
-          "description": "REST API 서버 URL"
-        },
-        "gptini.wsUrl": {
+        "gptini.proxyUrl": {
           "type": "string",
           "default": "https://gpt-ini.onrender.com",
-          "description": "WebSocket 프록시 URL"
+          "description": "프록시 서버 URL (REST API 및 WebSocket 모두 사용)"
         }
       }
     }
