@@ -50,6 +50,20 @@ GitHub repo → Settings → Secrets and variables → Actions → New repositor
 - [ ] certbot으로 SSL 인증서 발급
 - [ ] `api.gptini.org` → `localhost:8080` 리버스 프록시 설정
 
+### 7. 프록시 서버 설정 (공유오피스 도메인 차단 우회)
+
+> **구조**: 브라우저 → Render 프록시 (`*.onrender.com`) → Spring (`api.gptini.org`)
+
+- [ ] Render.com에서 `gptini-proxy` 서비스 생성 (레포 연결, `render.yaml` 자동 인식)
+- [ ] Render 대시보드 → Environment에서 `TARGET_URL` 설정
+  - SSL 설정 전: `http://3.37.92.94:8080`
+  - SSL 설정 후: `https://api.gptini.org`
+- [ ] Spring CORS 설정에 Render 프록시 도메인 추가 (`https://gptini-proxy.onrender.com`)
+- [ ] 백엔드 레포에서 WebSocket 엔드포인트 경로 확인 → `WS_PATH` 환경변수 수정
+- [ ] 백엔드 레포에서 REST API 경로 확인 → `API_PATH` 환경변수 수정
+- [ ] VS Code 설정 (`gptini.proxyUrl`)을 Render 배포 URL로 변경
+- [ ] React 프론트의 API baseURL을 Render 프록시 URL로 변경
+
 ---
 
 ## 파일 구조

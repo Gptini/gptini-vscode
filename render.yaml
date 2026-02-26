@@ -10,11 +10,11 @@ services:
     healthCheckPath: /health
     envVars:
       - key: TARGET_URL
-        sync: false       # Render 대시보드에서 직접 입력 (Spring 서버 주소)
+        sync: false       # http://3.37.92.94:8080 (SSL 전) 또는 https://api.gptini.org (SSL 후)
       - key: API_PATH
-        value: /api       # 레포 확인 후 수정
+        value: /api       # 백엔드 @RequestMapping 확인 후 수정
       - key: WS_PATH
-        value: /ws        # 레포 확인 후 수정
+        value: /ws        # 백엔드 WebSocketConfig 확인 후 수정
       - key: ALLOWED_ORIGINS
         value: "*"
       - key: NODE_ENV
