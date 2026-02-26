@@ -36,7 +36,7 @@
       "properties": {
         "gptini.serverUrl": {
           "type": "string",
-          "default": "https://api.gptini.org",
+          "default": "https://gpt-ini.onrender.com",
           "description": "백엔드 서버 URL"
         }
       }

@@ -1,7 +1,7 @@
 import * as vscode from "vscode";
 import axios from "axios";
 
-const DEFAULT_API_URL = "https://api.gptini.org";
+const DEFAULT_API_URL = "https://gpt-ini.onrender.com";
 
 function getNonce() {
     let text = "";
