@@ -68,7 +68,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     }
 
     private _getWsUrl(): string {
-        return `${this._getApiUrl()}/ws`;
+        return this._getApiUrl() + "/ws";
     }
 
     private async _handleReady() {
@@ -83,40 +83,48 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
     private async _handleLogin(email: string, password: string) {
         try {
             const apiUrl = this._getApiUrl();
+            console.log(`[GPTini] 로그인 시도: ${apiUrl}/api/v1/auth/login`);
             const { data: authData } = await axios.post(
                 `${apiUrl}/api/v1/auth/login`,
                 { email, password },
             );
+            console.log("[GPTini] 로그인 응답:", JSON.stringify(authData));
+            const accessToken  = authData.data.accessToken;
+            const refreshToken = authData.data.refreshToken;
+            console.log("[GPTini] 유저 정보 조회 중...");
             const { data: userData } = await axios.get(
                 `${apiUrl}/api/v1/users/me`,
                 {
                     headers: {
-                        Authorization: `Bearer ${authData.accessToken}`,
+                        Authorization: `Bearer ${accessToken}`,
                     },
                 },
             );
 
-            await this._context.secrets.store(
-                "gptini.accessToken",
-                authData.accessToken,
-            );
-            await this._context.secrets.store(
-                "gptini.refreshToken",
-                authData.refreshToken,
-            );
-            await this._context.globalState.update(
-                "gptini.userId",
-                userData.id,
-            );
-            await this._context.globalState.update(
-                "gptini.nickname",
-                userData.nickname,
-            );
+            await this._context.secrets.store("gptini.accessToken",  accessToken);
+            await this._context.secrets.store("gptini.refreshToken", refreshToken);
+            const user = userData.data ?? userData;
+            await this._context.globalState.update("gptini.userId",   user.id);
+            await this._context.globalState.update("gptini.nickname", user.nickname);
 
             await this._handleLoadRooms();
         } catch (error: any) {
-            const msg =
-                error?.response?.data?.message || "로그인에 실패했습니다.";
+            const status = error?.response?.status;
+            const url = error?.config?.url || `${this._getApiUrl()}/api/v1/auth/login`;
+            const serverMsg = error?.response?.data?.message;
+            console.error("[GPTini] 로그인 실패:", { status, url, data: error?.response?.data, message: error?.message });
+
+            let msg: string;
+            if (!error?.response) {
+                msg = `서버에 연결할 수 없습니다.\n시도한 URL: ${url}`;
+            } else if (status === 401) {
+                msg = "이메일 또는 비밀번호가 올바르지 않습니다.";
+            } else if (status === 404) {
+                msg = `API 경로를 찾을 수 없습니다. (404)\nURL: ${url}`;
+            } else {
+                msg = serverMsg || `로그인 실패 (HTTP ${status})\nURL: ${url}`;
+            }
+
             this._view?.webview.postMessage({ type: "loginError", message: msg });
         }
     }
@@ -125,10 +133,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         try {
             const token = await this._context.secrets.get("gptini.accessToken");
             const apiUrl = this._getApiUrl();
-            const { data: rooms } = await axios.get(
+            const { data: roomsRes } = await axios.get(
                 `${apiUrl}/api/v1/chat/rooms`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
+            const rooms = roomsRes.data ?? roomsRes;
             const userId = this._context.globalState.get<number>("gptini.userId");
             const nickname =
                 this._context.globalState.get<string>("gptini.nickname");
@@ -151,10 +160,11 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             const token = await this._context.secrets.get("gptini.accessToken");
             const userId = this._context.globalState.get<number>("gptini.userId");
             const apiUrl = this._getApiUrl();
-            const { data: messages } = await axios.get(
+            const { data: messagesRes } = await axios.get(
                 `${apiUrl}/api/v1/chat/rooms/${roomId}/messages`,
                 { headers: { Authorization: `Bearer ${token}` } },
             );
+            const messages = messagesRes.data ?? messagesRes;
 
             this._view?.webview.postMessage({
                 type: "showChat",
@@ -290,6 +300,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
             font-size: 12px;
             color: var(--vscode-errorForeground, #f48771);
             display: none;
+            white-space: pre-line;
         }
         .error-msg.visible { display: block; }
 
@@ -637,7 +648,7 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
         // ── WebSocket (STOMP over SockJS) ──
         function connectWs(token, wsUrl, userId) {
             if (stompClient?.active) return;
-
+            console.log('[GPTini] WS 연결 시도:', wsUrl);
             stompClient = new StompJs.Client({
                 webSocketFactory: () => new SockJS(wsUrl),
                 connectHeaders: { Authorization: \`Bearer \${token}\` },
@@ -655,8 +666,8 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
                     if (currentRoomId !== null) subscribeRoom(currentRoomId);
                 },
                 onDisconnect: () => updateWsDot(false),
-                onStompError:    () => {},
-                onWebSocketError: () => {},
+                onStompError: (frame) => { console.error('[GPTini] STOMP error:', frame); },
+                onWebSocketError: (e) => { console.error('[GPTini] WS error:', e); },
             });
             stompClient.activate();
         }
@@ -778,7 +789,13 @@ export class ChatViewProvider implements vscode.WebviewViewProvider {
 
         function sendMessage() {
             const content = msgInput.value.trim();
-            if (!content || !stompClient?.connected || currentRoomId === null) return;
+            if (!content) return;
+            if (!stompClient?.connected) {
+                console.warn('[GPTini] 전송 실패: WS 미연결, connected=', stompClient?.connected, 'active=', stompClient?.active);
+                alert('서버에 연결되지 않았습니다. 잠시 후 다시 시도해주세요.');
+                return;
+            }
+            if (currentRoomId === null) return;
             stompClient.publish({
                 destination: \`/pub/chat/rooms/\${currentRoomId}\`,
                 body: JSON.stringify({ type: 'TEXT', content }),
